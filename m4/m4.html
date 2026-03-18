@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>India Election · Voter Intelligence Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg:      #f5f3ef;
+    --surface: #fdfcfa;
+    --border:  rgba(60,50,40,0.09);
+    --border2: rgba(60,50,40,0.18);
+    --text:    #2c2620;
+    --muted:   #8a7f74;
+    --accent:  #b5533c;
+    --accent2: #4a7fa5;
+    --accent4: #7c6fa0;
+    --green:   #4a8c6f;
+    --gold:    #b08040;
+    --fh: 'Syne', sans-serif;
+    --fb: 'DM Sans', sans-serif;
+    --g: 7px;
+    --r: 11px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--fb);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0; opacity: 0.5;
+  }
+
+  .blob { position: fixed; border-radius: 50%; filter: blur(90px); pointer-events: none; z-index: 0; }
+  .b1 { width:380px;height:380px; background:rgba(181,83,60,0.06);  top:-100px;right:-80px; }
+  .b2 { width:320px;height:320px; background:rgba(74,127,165,0.06); bottom:-80px;left:-60px; }
+
+  /* ── SHELL: header row + body row ── */
+  .shell {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-rows: 48px 1fr;
+    width: 100vw; height: 100vh;
+    padding: var(--g);
+    gap: var(--g);
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+  }
+  .hl { display: flex; align-items: center; gap: 10px; }
+  .eyebrow { font-size: 9px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-family: var(--fh); font-size: .95rem; font-weight: 800; letter-spacing: -.01em; line-height: 1; }
+  h1 span { color: var(--accent); }
+  .hsep { width:1px; height:22px; background:var(--border2); }
+  .hmeta { font-size: 9.5px; color: var(--muted); }
+  .badges { display:flex; gap:5px; }
+  .badge { padding:3px 9px; border-radius:100px; font-size:9.5px; font-weight:500; border:1px solid; white-space:nowrap; }
+  .bo { color:var(--accent);  border-color:rgba(181,83,60,.28);  background:rgba(181,83,60,.07);  }
+  .bb { color:var(--accent2); border-color:rgba(74,127,165,.28); background:rgba(74,127,165,.07); }
+  .bg { color:var(--green);   border-color:rgba(74,140,111,.28); background:rgba(74,140,111,.07); }
+
+  /* ── BODY GRID ──
+     Col 1: KPI stack (fixed 180px)
+     Col 2: Turnout chart (wide)
+     Col 3: Gender + Scatter stacked
+     Col 4: NOTA chart + Table stacked
+  */
+  .body {
+    display: grid;
+    grid-template-columns: 172px 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: var(--g);
+    min-height: 0;
+  }
+
+  .kpi-col { grid-row: 1/3; display:flex; flex-direction:column; gap:var(--g); }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 9px 11px;
+    display: flex; flex-direction: column;
+    min-height: 0; overflow: hidden;
+    transition: box-shadow .18s ease;
+  }
+  .card:hover { box-shadow: 0 5px 18px rgba(60,50,40,.09); }
+
+  /* ── KPI CARD ── */
+  .kc {
+    flex: 1; position: relative;
+    transition: transform .18s ease, box-shadow .18s ease;
+    cursor: default;
+  }
+  .kc::before {
+    content:''; position:absolute; top:0;left:0;right:0; height:2px;
+    border-radius:2px 2px 0 0;
+    background:var(--ca, var(--accent)); opacity:.7;
+  }
+  .kc:hover { transform:translateY(-2px); box-shadow:0 7px 18px rgba(60,50,40,.1); }
+  .ki  { font-size:13px; margin-bottom:3px; display:block; }
+  .kl  { font-size:8.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:2px; }
+  .kv  { font-family:var(--fh); font-size:1.4rem; font-weight:700; line-height:1; }
+  .kv span { color:var(--ca, var(--accent)); }
+  .ks  { font-size:9.5px; color:var(--muted); margin-top:2px; line-height:1.3; }
+  .kt  { position:absolute; bottom:7px; right:9px; font-size:8.5px; font-weight:600; padding:2px 5px; border-radius:4px; }
+  .tup { color:var(--green);  background:rgba(74,140,111,.1); }
+  .tne { color:var(--gold);   background:rgba(176,128,64,.1); }
+  .tdn { color:var(--accent); background:rgba(181,83,60,.1);  }
+
+  /* Turnout chart spans 2 rows */
+  .turnout-card { grid-column: 2; grid-row: 1/3; }
+
+  /* ── CHART HEADER ── */
+  .ch { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:5px; flex-shrink:0; }
+  .ct { font-family:var(--fh); font-size:11px; font-weight:700; }
+  .cs { font-size:8.5px; color:var(--muted); margin-top:1px; }
+  .tag { font-size:8.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; padding:2px 6px; border-radius:4px; border:1px solid; white-space:nowrap; flex-shrink:0; }
+  .to { color:var(--accent);  background:rgba(181,83,60,.07);  border-color:rgba(181,83,60,.2);  }
+  .tb { color:var(--accent2); background:rgba(74,127,165,.07); border-color:rgba(74,127,165,.2); }
+  .tp { color:var(--accent4); background:rgba(124,111,160,.07);border-color:rgba(124,111,160,.2);}
+  .tc { color:var(--green);   background:rgba(74,140,111,.07); border-color:rgba(74,140,111,.2); }
+
+  .leg { display:flex; gap:8px; margin-bottom:4px; flex-shrink:0; }
+  .li  { display:flex; align-items:center; gap:3px; font-size:8.5px; color:var(--muted); }
+  .ld  { width:6px;height:6px;border-radius:2px;flex-shrink:0; }
+
+  /* Canvas wrapper fills remaining space */
+  .cw { position:relative; flex:1; min-height:0; }
+  .cw canvas { position:absolute; inset:0; width:100%!important; height:100%!important; }
+
+  /* ── TABLE ── */
+  .tbl { flex:1; overflow-y:auto; min-height:0; scrollbar-width:thin; scrollbar-color:rgba(60,50,40,.15) transparent; }
+  table { width:100%; border-collapse:collapse; font-size:9.5px; }
+  th {
+    font-size:8px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--muted); padding:0 5px 5px; text-align:left;
+    border-bottom:1px solid var(--border);
+    position:sticky; top:0; background:var(--surface); z-index:2;
+  }
+  th:not(:first-child) { text-align:right; }
+  td { padding:4px 5px; border-bottom:1px solid rgba(60,50,40,.04); }
+  td:not(:first-child) { text-align:right; }
+  tr:hover td { background:rgba(60,50,40,.025); }
+  .sn  { font-weight:500; }
+  .bm  { display:inline-block;height:4px;border-radius:2px;vertical-align:middle;margin-left:2px; }
+  .pill { display:inline-block;padding:1px 5px;border-radius:100px;font-size:8px;font-weight:500; }
+  .ph { background:rgba(74,140,111,.12); color:var(--green);  }
+  .pm { background:rgba(176,128,64,.12);  color:var(--gold);   }
+  .pl { background:rgba(181,83,60,.12);   color:var(--accent); }
+
+  /* ── TOOLTIP ── */
+  #tip {
+    position:fixed; background:#fdfcfa; border:1px solid rgba(60,50,40,.18);
+    border-radius:8px; padding:8px 12px; font-size:11px; pointer-events:none;
+    z-index:9999; box-shadow:0 5px 20px rgba(60,50,40,.13); max-width:185px;
+    opacity:0; transition:opacity .12s ease;
+  }
+  #tip.on { opacity:1; }
+  .tt { font-weight:600; color:#2c2620; margin-bottom:3px; font-size:11.5px; }
+  .tr { display:flex; justify-content:space-between; gap:12px; color:#8a7f74; }
+  .tv { color:#2c2620; font-weight:500; }
+
+  /* Fade-up entrance */
+  .fu { opacity:0; transform:translateY(8px); animation:fu .38s ease forwards; }
+  @keyframes fu { to { opacity:1; transform:none; } }
+  .kc:nth-child(1){animation-delay:.04s} .kc:nth-child(2){animation-delay:.08s}
+  .kc:nth-child(3){animation-delay:.12s} .kc:nth-child(4){animation-delay:.16s}
+  .kc:nth-child(5){animation-delay:.20s}
+</style>
+</head>
+<body>
+<div class="blob b1"></div>
+<div class="blob b2"></div>
+<div id="tip"></div>
+
+<div class="shell">
+
+  <!-- HEADER -->
+  <header>
+    <div class="hl">
+      <div>
+        <div class="eyebrow">🗳 Election Analysis</div>
+        <h1>India Voter <span>Intelligence</span> Dashboard</h1>
+      </div>
+      <div class="hsep"></div>
+      <div class="hmeta">36 States & UTs · Lok Sabha General Election · Election Commission of India</div>
+    </div>
+    <div class="badges">
+      <span class="badge bo">977M+ Electors</span>
+      <span class="badge bb">646M+ Votes Cast</span>
+      <span class="badge bg">3 KPIs</span>
+    </div>
+  </header>
+
+  <!-- BODY -->
+  <div class="body">
+
+    <!-- COL 1: KPI stack (spans both rows) -->
+    <div class="kpi-col">
+      <div class="card kc fu" style="--ca:var(--accent)">
+        <span class="ki">📊</span>
+        <div class="kl">National Turnout</div>
+        <div class="kv"><span>65.9</span>%</div>
+        <div class="ks">646M of 978M electors</div>
+        <span class="kt tup">↑ KPI 1</span>
+      </div>
+      <div class="card kc fu" style="--ca:var(--accent2)">
+        <span class="ki">⚖️</span>
+        <div class="kl">Gender Gap (F−M)</div>
+        <div class="kv"><span>+0.23</span>pp</div>
+        <div class="ks">Female 65.78% leads male</div>
+        <span class="kt tne">→ KPI 2</span>
+      </div>
+      <div class="card kc fu" style="--ca:var(--accent4)">
+        <span class="ki">🚫</span>
+        <div class="kl">Total NOTA Votes</div>
+        <div class="kv"><span>63.7</span>L</div>
+        <div class="ks">0.98% of valid votes</div>
+        <span class="kt tne">↔ KPI 3</span>
+      </div>
+      <div class="card kc fu" style="--ca:var(--green)">
+        <span class="ki">🏆</span>
+        <div class="kl">Highest Turnout</div>
+        <div class="kv"><span>85.0</span>%</div>
+        <div class="ks">Lakshadweep · 84.98%</div>
+        <span class="kt tup">↑ Best</span>
+      </div>
+      <div class="card kc fu" style="--ca:var(--accent)">
+        <span class="ki">⚠️</span>
+        <div class="kl">Lowest Turnout</div>
+        <div class="kv"><span>56.3</span>%</div>
+        <div class="ks">Bihar · 77.3M electors</div>
+        <span class="kt tdn">↓ Concern</span>
+      </div>
+    </div>
+
+    <!-- COL 2: Turnout bar (spans both rows) -->
+    <div class="card turnout-card fu" style="animation-delay:.1s">
+      <div class="ch">
+        <div>
+          <div class="ct">Voter Turnout % · All 36 States & UTs</div>
+          <div class="cs">Sorted descending · hover bars for full state details</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span class="tag to">KPI 1</span>
+          <div class="leg" style="margin:0">
+            <div class="li"><div class="ld" style="background:#4a8c6f"></div>High ≥75%</div>
+            <div class="li"><div class="ld" style="background:#b08040"></div>Mid 65–75%</div>
+            <div class="li"><div class="ld" style="background:#b5533c"></div>Low &lt;65%</div>
+          </div>
+        </div>
+      </div>
+      <div class="cw"><canvas id="chartTurnout"></canvas></div>
+    </div>
+
+    <!-- ROW 1, COL 3: Gender chart -->
+    <div class="card fu" style="animation-delay:.14s">
+      <div class="ch">
+        <div>
+          <div class="ct">Male vs Female Turnout</div>
+          <div class="cs">Top 15 states by female turnout</div>
+        </div>
+        <span class="tag tb">KPI 2</span>
+      </div>
+      <div class="leg">
+        <div class="li"><div class="ld" style="background:#4a7fa5;border-radius:50%"></div>Male %</div>
+        <div class="li"><div class="ld" style="background:#b5533c;border-radius:50%"></div>Female %</div>
+      </div>
+      <div class="cw"><canvas id="chartGender"></canvas></div>
+    </div>
+
+    <!-- ROW 1, COL 4: NOTA chart -->
+    <div class="card fu" style="animation-delay:.18s">
+      <div class="ch">
+        <div>
+          <div class="ct">NOTA Share · Top 15 States</div>
+          <div class="cs">% of valid votes · voter dissatisfaction</div>
+        </div>
+        <span class="tag tp">KPI 3</span>
+      </div>
+      <div class="cw"><canvas id="chartNota"></canvas></div>
+    </div>
+
+    <!-- ROW 2, COL 3: Scatter -->
+    <div class="card fu" style="animation-delay:.22s">
+      <div class="ch">
+        <div>
+          <div class="ct">Electorate Size vs Turnout %</div>
+          <div class="cs">Bubble size = NOTA share · hover for details</div>
+        </div>
+        <span class="tag tp">KPI 1+3</span>
+      </div>
+      <div class="cw"><canvas id="chartScatter"></canvas></div>
+    </div>
+
+    <!-- ROW 2, COL 4: State table -->
+    <div class="card fu" style="animation-delay:.26s">
+      <div class="ch" style="margin-bottom:4px">
+        <div class="ct">State Rankings · All Metrics</div>
+        <span class="tag tc">All KPIs</span>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>State</th><th>Turn.</th>
+              <th>M%</th><th>F%</th><th>NOTA%</th><th>Tier</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /body -->
+</div><!-- /shell -->
+
+<script>
+const DATA = [
+  ["Andhra Pradesh",81.78,80.81,80.30,41401887,33858957,402368,1.207],
+  ["Arunachal Pradesh",81.07,74.35,79.42,898442,728393,7191,1.004],
+  ["Assam",81.87,81.01,81.71,24572114,20118166,240301,1.212],
+  ["Bihar",56.28,53.00,59.45,77259579,43480859,899616,2.114],
+  ["Goa",76.99,75.38,76.66,1179644,908178,11171,1.247],
+  ["Gujarat",60.74,63.45,56.55,48009945,29161987,460359,1.607],
+  ["Haryana",64.77,65.32,63.45,20187911,13075630,43542,0.335],
+  ["Himachal Pradesh",71.45,67.62,72.55,5711969,4081076,23125,0.571],
+  ["Karnataka",70.90,71.01,70.16,54772332,38835377,218343,0.566],
+  ["Kerala",72.04,70.34,71.86,27807008,20033258,158456,0.799],
+  ["Madhya Pradesh",67.01,69.20,64.23,56668852,37972368,533705,1.427],
+  ["Maharashtra",61.52,63.31,59.04,93061760,57248402,415580,0.732],
+  ["Manipur",78.28,76.09,78.72,2051357,1605769,11022,0.696],
+  ["Meghalaya",76.89,74.16,78.74,2230451,1715027,16848,0.994],
+  ["Mizoram",57.10,57.51,55.66,861327,491828,1893,0.387],
+  ["Nagaland",57.84,56.88,57.89,1325383,766573,1646,0.217],
+  ["Odisha",74.78,73.16,75.56,33716965,25214359,325447,1.312],
+  ["Punjab",62.79,62.71,62.26,21567196,13542849,67158,0.499],
+  ["Rajasthan",62.07,61.97,60.71,53508010,33211938,279464,0.850],
+  ["Sikkim",83.26,78.90,79.63,466643,388507,2527,0.661],
+  ["Tamil Nadu",70.14,69.43,69.86,62404947,43769106,467068,1.081],
+  ["Tripura",81.82,80.71,80.56,2870896,2348827,32915,1.424],
+  ["Uttar Pradesh",56.99,56.46,57.22,154403112,87997543,636855,0.730],
+  ["West Bengal",79.55,78.20,80.16,76124780,60554535,524954,0.876],
+  ["Chhattisgarh",72.94,73.25,72.22,20678667,15083307,135725,0.909],
+  ["Jharkhand",66.77,63.58,68.66,25877892,17279192,195472,1.147],
+  ["Uttarakhand",57.69,54.81,58.56,8431101,4864181,53111,1.110],
+  ["Telangana",66.30,66.01,65.28,33232318,22031832,104244,0.476],
+  ["A&N Islands",64.16,64.17,63.75,315745,202597,1809,0.901],
+  ["Chandigarh",68.03,68.54,67.22,660552,449383,2912,0.652],
+  ["Dadra & NH/DD",71.44,69.99,72.73,417236,298073,6129,2.100],
+  ["NCT Delhi",58.78,58.93,58.24,15214638,8943585,45287,0.509],
+  ["Lakshadweep",84.98,82.41,85.46,57953,49247,133,0.271],
+  ["Puducherry",79.24,78.59,79.13,1024024,811432,9763,1.223],
+  ["Jammu & Kashmir",58.65,59.69,56.36,8802348,5162866,34788,0.680],
+  ["Ladakh",71.19,66.57,72.81,190576,135662,912,0.678],
+];
+
+const sorted = [...DATA].sort((a,b)=>b[1]-a[1]);
+
+// Tooltip helpers
+const tip = document.getElementById('tip');
+function showTip(e,html){ tip.innerHTML=html; tip.classList.add('on'); mv(e); }
+function mv(e){ tip.style.left=Math.min(e.clientX+14,innerWidth-195)+'px'; tip.style.top=Math.min(e.clientY-8,innerHeight-125)+'px'; }
+function hideTip(){ tip.classList.remove('on'); }
+document.addEventListener('mousemove',mv);
+
+// Shared tooltip style
+const TT = { backgroundColor:'#fdfcfa', titleColor:'#2c2620', bodyColor:'#8a7f74', borderColor:'rgba(60,50,40,.16)', borderWidth:1, padding:8 };
+
+// ── CHART 1: Turnout horizontal bar ──────────────────────────────────────────
+const vals1   = sorted.map(d=>d[1]);
+const colors1 = vals1.map(v=>v>=75?'#4a8c6f':v>=65?'#b08040':'#b5533c');
+
+const chart1 = new Chart(document.getElementById('chartTurnout'),{
+  type:'bar',
+  data:{ labels:sorted.map(d=>d[0]), datasets:[{ data:vals1, backgroundColor:colors1, borderRadius:3, borderSkipped:false }] },
+  options:{
+    indexAxis:'y', responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{enabled:false} },
+    scales:{
+      x:{ min:50,max:92, ticks:{callback:v=>v+'%',color:'#8a7f74',font:{size:8.5,family:'DM Sans'}}, grid:{color:'rgba(60,50,40,.06)'}, border:{color:'rgba(60,50,40,.1)'} },
+      y:{ ticks:{color:'#4a3e35',font:{size:8,family:'DM Sans'}}, grid:{display:false}, border:{color:'transparent'} }
+    },
+    onHover:(ev,els)=>{
+      if(els.length){
+        const d=sorted[els[0].index];
+        const gap=(d[3]-d[2]).toFixed(2);
+        const gc=gap>0?`<span style="color:#b5533c">F +${gap}pp</span>`:`<span style="color:#4a7fa5">M -${Math.abs(gap)}pp</span>`;
+        showTip(ev.native,`<div class="tt">${d[0]}</div>
+          <div class="tr"><span>Turnout</span><span class="tv">${d[1]}%</span></div>
+          <div class="tr"><span>Male</span><span class="tv">${d[2]}%</span></div>
+          <div class="tr"><span>Female</span><span class="tv">${d[3]}%</span></div>
+          <div class="tr"><span>Gap</span><span class="tv">${gc}</span></div>
+          <div class="tr"><span>NOTA</span><span class="tv">${d[7]}%</span></div>`);
+      } else hideTip();
+    }
+  }
+});
+
+Chart.register({
+  id:'avgLine',
+  afterDraw(chart){
+    if(chart.canvas.id!=='chartTurnout') return;
+    const {ctx,scales:{x}}=chart, xp=x.getPixelForValue(65.9);
+    ctx.save();
+    ctx.strokeStyle='rgba(181,83,60,.4)'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(xp,chart.chartArea.top); ctx.lineTo(xp,chart.chartArea.bottom); ctx.stroke();
+    ctx.fillStyle='rgba(181,83,60,.65)'; ctx.font='8.5px DM Sans';
+    ctx.fillText('Avg 65.9%',xp+3,chart.chartArea.top+11);
+    ctx.restore();
+  }
+});
+chart1.update();
+
+// ── CHART 2: Gender grouped bar ───────────────────────────────────────────────
+const g15=[...DATA].sort((a,b)=>b[3]-a[3]).slice(0,15);
+new Chart(document.getElementById('chartGender'),{
+  type:'bar',
+  data:{
+    labels:g15.map(d=>d[0].length>10?d[0].slice(0,9)+'…':d[0]),
+    datasets:[
+      { label:'Male %',   data:g15.map(d=>d[2]), backgroundColor:'rgba(74,127,165,.65)', borderRadius:2, borderSkipped:false },
+      { label:'Female %', data:g15.map(d=>d[3]), backgroundColor:'rgba(181,83,60,.65)',  borderRadius:2, borderSkipped:false }
+    ]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{ ...TT, callbacks:{ title:i=>g15[i[0].dataIndex][0], label:i=>` ${i.dataset.label}: ${i.raw}%` } } },
+    scales:{
+      x:{ ticks:{color:'#8a7f74',font:{size:7.5}}, grid:{display:false}, border:{color:'rgba(60,50,40,.1)'} },
+      y:{ min:50,max:90, ticks:{callback:v=>v+'%',color:'#8a7f74',font:{size:8.5}}, grid:{color:'rgba(60,50,40,.06)'}, border:{color:'transparent'} }
+    }
+  }
+});
+
+// ── CHART 3: NOTA bar ─────────────────────────────────────────────────────────
+const n15=[...DATA].sort((a,b)=>b[7]-a[7]).slice(0,15);
+new Chart(document.getElementById('chartNota'),{
+  type:'bar',
+  data:{
+    labels:n15.map(d=>d[0].length>13?d[0].slice(0,12)+'…':d[0]),
+    datasets:[{ data:n15.map(d=>d[7]),
+      backgroundColor:n15.map(d=>d[7]>1.5?'rgba(124,111,160,.8)':d[7]>1?'rgba(124,111,160,.55)':'rgba(124,111,160,.32)'),
+      borderRadius:3, borderSkipped:false }]
+  },
+  options:{
+    indexAxis:'y', responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{ ...TT, callbacks:{ title:i=>n15[i[0].dataIndex][0], label:i=>` NOTA: ${i.raw}%` } } },
+    scales:{
+      x:{ ticks:{callback:v=>v+'%',color:'#8a7f74',font:{size:8.5}}, grid:{color:'rgba(60,50,40,.06)'}, border:{color:'rgba(60,50,40,.1)'} },
+      y:{ ticks:{color:'#4a3e35',font:{size:8}}, grid:{display:false}, border:{color:'transparent'} }
+    }
+  }
+});
+
+// ── CHART 4: Bubble scatter ───────────────────────────────────────────────────
+const sd=DATA.map(d=>({ x:+(d[4]/1e6).toFixed(2), y:d[1], r:Math.max(3,d[7]*3.2), name:d[0], nota:d[7] }));
+new Chart(document.getElementById('chartScatter'),{
+  type:'bubble',
+  data:{ datasets:[{ data:sd,
+    backgroundColor:sd.map(d=>d.y>=75?'rgba(74,140,111,.4)':d.y>=65?'rgba(176,128,64,.4)':'rgba(181,83,60,.4)'),
+    borderColor:    sd.map(d=>d.y>=75?'rgba(74,140,111,.85)':d.y>=65?'rgba(176,128,64,.85)':'rgba(181,83,60,.85)'),
+    borderWidth:1
+  }]},
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{ ...TT, callbacks:{ title:i=>[i[0].raw.name], label:i=>[` Turnout: ${i.raw.y}%`,` Electors: ${i.raw.x}M`,` NOTA: ${i.raw.nota}%`] } } },
+    scales:{
+      x:{ title:{display:true,text:'Electors (M)',color:'#8a7f74',font:{size:8.5}}, ticks:{callback:v=>v+'M',color:'#8a7f74',font:{size:8.5}}, grid:{color:'rgba(60,50,40,.05)'}, border:{color:'rgba(60,50,40,.1)'} },
+      y:{ title:{display:true,text:'Turnout %',color:'#8a7f74',font:{size:8.5}},   ticks:{callback:v=>v+'%',color:'#8a7f74',font:{size:8.5}}, grid:{color:'rgba(60,50,40,.05)'}, border:{color:'transparent'} }
+    }
+  }
+});
+
+// ── TABLE ─────────────────────────────────────────────────────────────────────
+const tb=document.getElementById('tbody');
+sorted.forEach((d,i)=>{
+  const tier=d[1]>=75?'<span class="pill ph">Hi</span>':d[1]>=65?'<span class="pill pm">Mid</span>':'<span class="pill pl">Lo</span>';
+  const bw=Math.round((d[1]-50)/42*40);
+  const bc=d[1]>=75?'#4a8c6f':d[1]>=65?'#b08040':'#b5533c';
+  const tr=document.createElement('tr');
+  tr.innerHTML=`
+    <td style="color:var(--muted);font-size:8.5px">${i+1}</td>
+    <td><span class="sn">${d[0]}</span></td>
+    <td><span style="font-weight:500">${d[1]}%</span><span class="bm" style="width:${bw}px;background:${bc};opacity:.45"></span></td>
+    <td style="color:#4a7fa5">${d[2]}%</td>
+    <td style="color:#b5533c">${d[3]}%</td>
+    <td style="color:#7c6fa0">${d[7]}%</td>
+    <td>${tier}</td>`;
+  tb.appendChild(tr);
+});
+</script>
+</body>
+</html>
